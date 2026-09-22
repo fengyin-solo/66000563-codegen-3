@@ -199,6 +199,9 @@ obj/
 *.sqlite3
 *.db
 
+# Backend runtime data (persisted common resilience rules, etc.)
+backend/app/data/
+
 # =========================
 # Test output
 # =========================

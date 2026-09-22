@@ -20,6 +20,7 @@
         <DAGCanvas />
       </div>
       <div class="side-area">
+        <RuleConfigPanel />
         <LogPanel />
         <CircuitBreakerPanel />
       </div>
@@ -32,6 +33,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import DAGCanvas from './components/DAGCanvas.vue'
 import LogPanel from './components/LogPanel.vue'
 import CircuitBreakerPanel from './components/CircuitBreakerPanel.vue'
+import RuleConfigPanel from './components/RuleConfigPanel.vue'
 import { useDAGStore } from './store/dag'
 const store = useDAGStore()
 const wfName = ref('data-pipeline')
