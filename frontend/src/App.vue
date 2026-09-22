@@ -11,6 +11,7 @@
         <el-select v-model="store.strategy" size="small" style="width:100px">
           <el-option value="fifo" label="FIFO"/><el-option value="priority" label="优先级"/><el-option value="max_concurrent" label="最大并发"/>
         </el-select>
+        <el-button type="warning" size="small" @click="rulesVisible = true">⚙️ 熔断/重试规则</el-button>
         <el-button type="success" size="small" @click="run" :disabled="!store.workflow" :loading="store.loading">▶ 执行</el-button>
         <span class="ws-dot" :class="{on:store.wsConnected}"></span>
       </div>
@@ -24,6 +25,7 @@
         <CircuitBreakerPanel />
       </div>
     </div>
+    <RulesDialog v-model="rulesVisible" />
   </div>
 </template>
 
@@ -32,12 +34,14 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import DAGCanvas from './components/DAGCanvas.vue'
 import LogPanel from './components/LogPanel.vue'
 import CircuitBreakerPanel from './components/CircuitBreakerPanel.vue'
+import RulesDialog from './components/RulesDialog.vue'
 import { useDAGStore } from './store/dag'
 const store = useDAGStore()
 const wfName = ref('data-pipeline')
+const rulesVisible = ref(false)
 function create() { store.createWorkflow(wfName.value) }
 function run() { store.run() }
-onMounted(() => store.connectWS())
+onMounted(() => { store.connectWS(); store.fetchRules().catch(() => {}) })
 onUnmounted(() => store.disconnectWS())
 </script>
 

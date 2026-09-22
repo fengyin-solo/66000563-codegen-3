@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, nextTick } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useDAGStore } from '../store/dag'
 const store = useDAGStore()
 const cvs = ref<HTMLCanvasElement>()
@@ -11,6 +11,15 @@ const cvs = ref<HTMLCanvasElement>()
 const STATUS_COLORS: Record<string, string> = {
   PENDING: '#4a5568', RUNNING: '#3182ce', SUCCESS: '#38a169', FAILED: '#e53e3e', TIMEOUT: '#d69e2e'
 }
+
+// 熔断剩余冷却时间需要平滑倒数，500ms 重绘一次
+let repaintTimer: number | undefined
+onMounted(() => {
+  repaintTimer = window.setInterval(() => {
+    if (store.execution?.circuitBreakers?.some(cb => cb.state === 'OPEN')) draw()
+  }, 500)
+})
+onUnmounted(() => { if (repaintTimer) clearInterval(repaintTimer) })
 
 function draw() {
   const c = cvs.value!; c.width = c.clientWidth; c.height = c.clientHeight
@@ -23,6 +32,10 @@ function draw() {
   const nodes = wf.nodes
   const nodePos: Record<string, {x:number, y:number}> = {}
   nodes.forEach(n => { nodePos[n.id] = { x: 80 + n.x * 80, y: 60 + n.y * 80 } })
+
+  // 熔断状态（剩余冷却时间标在节点上方）
+  const cbMap: Record<string, any> = {}
+  for (const cb of store.execution?.circuitBreakers || []) cbMap[cb.taskId] = cb
 
   // Draw edges
   wf.edges.forEach(([u, v]) => {
@@ -72,6 +85,31 @@ function draw() {
     ctx.fillStyle = '#888'; ctx.font = '9px monospace'
     ctx.fillText(`${n.status} | 重试${n.retries}`, x, y + 14)
     ctx.textAlign = 'start'
+
+    // 熔断标记：OPEN 标出剩余冷却时间，HALF_OPEN 标出试探中
+    const cb = cbMap[n.id]
+    if (cb && cb.state === 'OPEN') {
+      const remain = Math.max(0, Math.ceil(cb.cooldownUntil - Date.now() / 1000))
+      const label = `熔断 ⏳${remain}s`
+      ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center'
+      const tw = ctx.measureText(label).width + 8
+      const bx = x - tw / 2, by = ry - 11
+      ctx.fillStyle = '#ef4444'
+      ctx.beginPath(); roundRect(ctx, bx, by, tw, 13, 3); ctx.fill()
+      ctx.fillStyle = '#fff'
+      ctx.fillText(label, x, by + 9.5)
+      ctx.textAlign = 'start'
+    } else if (cb && cb.state === 'HALF_OPEN') {
+      const label = '熔断放开·试探中'
+      ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center'
+      const tw = ctx.measureText(label).width + 8
+      const bx = x - tw / 2, by = ry - 11
+      ctx.fillStyle = '#fbbf24'
+      ctx.beginPath(); roundRect(ctx, bx, by, tw, 13, 3); ctx.fill()
+      ctx.fillStyle = '#1a1a2e'
+      ctx.fillText(label, x, by + 9.5)
+      ctx.textAlign = 'start'
+    }
 
     // Duration
     if (n.startTime && n.endTime) {
